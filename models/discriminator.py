@@ -9,7 +9,8 @@ class Discriminator(nn.Module):
             self.conv_block(64, 128),
             self.conv_block(128, 256),
             self.conv_block(256, 512),
-            nn.Conv2d(512, 1, 4, 1, 0)
+            nn.Conv2d(512, 1, 4, 1, 0),
+            nn.Sigmoid()
         )
 
     def conv_block(self, in_channels, out_channels, normalize=True):
@@ -20,4 +21,5 @@ class Discriminator(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
+        # x = torch.flatten(self.model(x), 1)
         return self.model(x)

@@ -1,51 +1,96 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
+
+class ConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=2, padding=1, use_instance_norm=True):
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
+        self.instance_norm = nn.InstanceNorm2d(out_channels) if use_instance_norm else None
+        self.relu = nn.ReLU(inplace=True)
+    
+    def forward(self, x):
+        x = self.conv(x)
+        if self.instance_norm:
+            x = self.instance_norm(x)
+        x = self.relu(x)
+        return x
+
+class ResidualBlock(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.conv1 = nn.Conv2d(channels, channels, 3, 1, 1)
+        self.conv2 = nn.Conv2d(channels, channels, 3, 1, 1)
+        self.instance_norm1 = nn.InstanceNorm2d(channels)
+        self.instance_norm2 = nn.InstanceNorm2d(channels)
+        self.relu = nn.ReLU(inplace=True)
+    
+    def forward(self, x):
+        residual = x
+        x = self.relu(self.instance_norm1(self.conv1(x)))
+        x = self.instance_norm2(self.conv2(x))
+        return x + residual
 
 class Generator(nn.Module):
-    def __init__(self, input_channels=6):  # 3 for image + 3 for watermark
-        super(Generator, self).__init__()
-        self.encoder = nn.Sequential(
-            self.conv_block(input_channels, 64, 2),
-            self.conv_block(64, 128, 2),
-            self.conv_block(128, 256, 2),
+    def __init__(self, input_channels=3):
+        super().__init__()
+        self.d64 = ConvBlock(input_channels * 2, 64)
+        self.d128 = ConvBlock(64, 128)
+        self.d256 = ConvBlock(128, 256)
+        
+        self.residual_blocks = nn.Sequential(*[ResidualBlock(256) for _ in range(4)])
+        
+        self.u128 = nn.Sequential(
+            nn.ConvTranspose2d(256, 128, 3, stride=2, padding=1, output_padding=1),
+            nn.InstanceNorm2d(128),
+            nn.ReLU(inplace=True)
         )
-        self.res_blocks = nn.Sequential(*[self.res_block(256) for _ in range(4)])
-        self.decoder = nn.Sequential(
-            self.deconv_block(256, 128),
-            self.deconv_block(128, 64),
-            nn.ConvTranspose2d(64, 3, 4, 2, 1),  # Output 3 channels for perturbation
+        self.u64 = nn.Sequential(
+            nn.ConvTranspose2d(128, 64, 3, stride=2, padding=1, output_padding=1),
+            nn.InstanceNorm2d(64),
+            nn.ReLU(inplace=True)
+        )
+
+        self.u32 = nn.Sequential(
+            nn.ConvTranspose2d(64, 32, 3, stride=2, padding=1, output_padding=1),
+            nn.InstanceNorm2d(32),
+            nn.ReLU(inplace=True)
+        )
+
+        self.final = nn.Sequential(
+            nn.Conv2d(32, input_channels, 3, 1, 1),
             nn.Tanh()
         )
-
-    def conv_block(self, in_channels, out_channels, stride):
-        return nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, 4, stride, 1),
-            nn.InstanceNorm2d(out_channels),
-            nn.ReLU(inplace=True)
-        )
-
-    def res_block(self, channels):
-        return nn.Sequential(
-            nn.Conv2d(channels, channels, 3, 1, 1),
-            nn.InstanceNorm2d(channels),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(channels, channels, 3, 1, 1),
-            nn.InstanceNorm2d(channels)
-        )
-
-    def deconv_block(self, in_channels, out_channels):
-        return nn.Sequential(
-            nn.ConvTranspose2d(in_channels, out_channels, 4, 2, 1),
-            nn.InstanceNorm2d(out_channels),
-            nn.ReLU(inplace=True)
-        )
-
+    
     def forward(self, x, m):
-        # Concatenate input image and watermark along channel dimension
-        combined_input = torch.cat([x, m], dim=1)
-        features = self.encoder(combined_input)
-        features = self.res_blocks(features)
-        perturbation = self.decoder(features)
-        return perturbation
+        # Debug prints
+        combined = torch.cat([x, m], dim=1)
+        # print(f"Input size: {combined.shape}")
+        
+        e1 = self.d64(combined)
+        # print(f"After d64: {e1.shape}")
+        
+        e2 = self.d128(e1)
+        # print(f"After d128: {e2.shape}")
+        
+        e3 = self.d256(e2)
+        # print(f"After d256: {e3.shape}")
+        
+        r = self.residual_blocks(e3)
+        # print(f"After residual: {r.shape}")
+        
+        d1 = self.u128(r)
+        # print(f"After u128: {d1.shape}")
+        
+        d2 = self.u64(d1)
+        # print(f"After u64: {d2.shape}")
+
+        d3 = self.u32(d2)
+        # print(f"After u32: {d3.shape}")
+        
+        out = self.final(d3)
+        # print(f"Output size: {out.shape}")
+        
+        # Ensure output matches input spatial dimensions
+        assert out.shape[2:] == x.shape[2:], f"Output shape {out.shape} doesn't match input shape {x.shape}"
+        
+        return out
