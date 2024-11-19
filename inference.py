@@ -35,9 +35,10 @@ def test_with_diffusion(generator, image, watermark, prompt, strength=0.1):
 
 def test_without_generator(image, prompt, strength=0.1):
     pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
-        "runwayml/stable-diffusion-v1-5",
-        torch_dtype=torch.float16,
-        use_safetensors=True
+        "stabilityai/stable-diffusion-xl-refiner-1.0",
+        torch_dtype=torch.bfloat16,
+        use_safetensors=True,
+        force_download=True
     ).to('cuda')
     pipe.enable_model_cpu_offload()
     print("loaded model")
@@ -53,18 +54,21 @@ def test_without_generator(image, prompt, strength=0.1):
 
 def main():
     generator = Generator().to('cuda')
-    checkpoint = torch.load('checkpoints/checkpoint_epoch_20.pth')
+    checkpoint = torch.load('checkpoints/20241112-221929/checkpoint_epoch_200.pth')
     generator.load_state_dict(checkpoint['generator_state_dict'])
     
     # Test cases
     test_prompts = [
         "A photo of base image",
-        "A oil painting of base image",
+        # "A oil painting of base image",
     ]
     print(test_prompts)
-    
-    image = Image.open("aaron-siskind_acolman-1-1955.jpg").convert("RGB")
-    watermark = create_watermark("aaron-siskind").convert("RGB")
+
+    image = Image.open("data/wikiart/Early_Renaissance/andrea-del-castagno_crucifixion-1.jpg").convert("RGB")
+    image_size = image.size  # Save original image size
+    print(image_size)
+    image_size = (image_size[1], image_size[0])
+    watermark = create_watermark("aaron-siskind", image_size).convert("RGB")
 
     # convert to tensor
     transform = transforms.Compose([
@@ -72,12 +76,17 @@ def main():
                 transforms.ToTensor(),
                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ])
+    
+    resize = transforms.Resize(image_size)
     image_ = transform(image).unsqueeze(0).to('cuda')
     watermark_ = transform(watermark).unsqueeze(0).to('cuda')
 
     for prompt in test_prompts:
         output, _ = test_with_diffusion(generator, image_, watermark_, prompt, strength=0.1)
-        # Save or analyze results
+        output_resized = resize(output)
+        # save output resized
+        output_resized.save(f"output/resize_{prompt}.png")
+        
         output.save(f"output/{prompt}.png")
 
     for prompt in test_prompts:
