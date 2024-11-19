@@ -7,6 +7,7 @@ from models import Generator, Discriminator, VAEWrapper
 from losses import gan_loss, adversarial_loss, perturbation_loss
 from config import TrainingConfig, ModelConfig
 from data_loader import create_dataloader
+from evaluate import evaluate_adversarial_quality
 
 def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, config):
     device = real_images.device
@@ -96,7 +97,12 @@ def main():
                 print(f"Epoch [{epoch}/{train_config.num_epochs}] "
                       f"Batch [{batch_idx}] D_loss: {d_loss:.4f} "
                       f"G_loss: {g_loss:.4f}")
-        
+        if epoch %5 == 0:
+            adv_metrics = evaluate_adversarial_quality(G, dataloader, device)
+            print("\nAdversarial Example Quality Metrics:")
+            print(f"MSE: {adv_metrics['mse']:.4f}")
+            print(f"PSNR: {adv_metrics['psnr']:.4f} dB")
+            print(f"SSIM: {adv_metrics['ssim']:.4f}")
         # Save models every 10 epochs
         if (epoch) % 10 == 0:
             torch.save({
