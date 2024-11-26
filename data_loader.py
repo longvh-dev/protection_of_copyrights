@@ -5,7 +5,9 @@ from PIL import Image
 import os
 import pandas as pd
 from typing import List, Tuple, Optional, Dict
-from PIL import ImageDraw, ImageFont
+from PIL import ImageDraw, ImageFont, Image
+import random
+import numpy as np
 
 class WatermarkDataset(Dataset):
     """Custom Dataset for watermark training that uses artist names as watermarks"""
@@ -47,9 +49,9 @@ class WatermarkDataset(Dataset):
         # Default transform if none provided
         if self.transform is None:
             self.transform = transforms.Compose([
-                transforms.Resize(image_size),
+                transforms.Resize(self.image_size),
                 transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ])
             
         # self.transform = transform
@@ -65,13 +67,13 @@ class WatermarkDataset(Dataset):
         # Load and transform image
         img_path = os.path.join(self.image_dir, row['filename'])
         image = Image.open(img_path).convert('RGB')
-        image_size = image.size # Save original image size
+        # image_size = image.size # Save original image size
         
         
         # Create watermark image
         artist_name = row['artist']
-        watermark = create_watermark(artist_name, image_size).convert('RGB')
-        
+        watermark = create_watermark(artist_name, self.image_size).convert('RGB')
+        # watermark = self.transform(watermark)
         if self.transform:
             image = self.transform(image)
             watermark = self.transform(watermark)
@@ -143,10 +145,11 @@ def create_watermark(
     text: str,
     image_size: Tuple[int, int] = (256, 256),
     font_size: int = 30,
-    line_spacing: float = 1.25
+    line_spacing: float = 1.25,
+    noise_level: float = 0.1,
 ) -> Image.Image:
     """
-    Creates a watermark image with repeated text
+    Creates a watermark image with repeated text using semi-transparent gray
     
     Args:
         text (str): Text to use as watermark
@@ -162,7 +165,7 @@ def create_watermark(
     img_width, img_height = image_size
     
     # Create new transparent image
-    watermark_image = Image.new("RGBA", (img_width, img_height), (0, 0, 0, 255))
+    watermark_image = Image.new("RGBA", (img_width, img_height), (2, 2, 2, 255))
     draw = ImageDraw.Draw(watermark_image)
     
     # Calculate font size based on image width and text length
@@ -178,26 +181,58 @@ def create_watermark(
     line_height = text_height * line_spacing
     num_lines = int(img_height / line_height)
     
-    # Draw watermark text lines
+    # Draw watermark text lines with semi-transparent dark gray
     for i in range(num_lines):
         y = i * line_height
-        draw.text((2, y), text, fill=(255, 255, 255, 255), font=font)
         
-    return watermark_image
+        # Random horizontal offset
+        x_offset = random.uniform(-20, 20)
+        
+        # Random opacity (alpha)
+        base_alpha = 180  # Semi-transparent base
+        alpha_noise = int(base_alpha * random.uniform(1 - noise_level, 1 + noise_level))
+        alpha_noise = max(0, min(255, alpha_noise))
+        
+        # Random color variation
+        color_noise = tuple(int(c * random.uniform(1 - noise_level, 1 + noise_level)) for c in (255, 255, 255))
+        
+        draw.text(
+            (x_offset + 2, y), 
+            text, 
+            fill=color_noise + (alpha_noise,), 
+            font=font
+        )
+    watermark_array = np.array(watermark_image)
 
-def custom_collate(batch):
-    """
-    Custom collate function to handle variable image sizes
-    """
-    images, watermarks, metadata = zip(*batch)
-    images = [item[0] for item in batch]
-    watermarks = [item[1] for item in batch]
-    metadata = [item[2] for item in batch]
+    # Add random noise to the alpha channel
+    noise = np.random.normal(
+        loc=0, 
+        scale=noise_level * 50, 
+        size=watermark_array.shape[:2]
+    )
     
-    # Convert metadata to dictionary
-    # metadata_dict = {key: [d[key] for d in metadata] for key in metadata[0]}
+    # Modify alpha channel with noise
+    noise_mask = noise.astype(np.int16)
+    watermark_array[:, :, 3] = np.clip(
+        watermark_array[:, :, 3].astype(np.int16) + noise_mask, 
+        0, 
+        255
+    )
     
-    return images, watermarks, metadata
+    # Slight color variation in background
+    background_noise = np.random.normal(
+        loc=0, 
+        scale=noise_level * 10, 
+        size=watermark_array.shape[:2] + (3,)
+    )
+    
+    watermark_array[:, :, :3] = np.clip(
+        watermark_array[:, :, :3].astype(np.int16) + background_noise.astype(np.int16), 
+        0, 
+        255
+    )
+    
+    return Image.fromarray(watermark_array)
 
 # Example usage:
 if __name__ == "__main__":
