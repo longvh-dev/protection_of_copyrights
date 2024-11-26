@@ -31,7 +31,7 @@ class ResidualBlock(nn.Module):
         return x + residual
 
 class Generator(nn.Module):
-    def __init__(self, input_channels=3, dropout=0.5):
+    def __init__(self, input_channels=3, dropout_rate=0.5):
         super().__init__()
         self.d64 = nn.Sequential(
             ConvBlock(input_channels * 2, 64),
