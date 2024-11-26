@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 class Discriminator(nn.Module):
     def __init__(self, input_channels=3):
         super(Discriminator, self).__init__()
@@ -9,7 +10,8 @@ class Discriminator(nn.Module):
             self.conv_block(64, 128),
             self.conv_block(128, 256),
             self.conv_block(256, 512),
-            nn.Conv2d(512, 1, 4, 1, 0),
+            self.conv_block(512, 1024),
+            nn.Conv2d(1024, 1, 4, 1, 0),
             nn.Sigmoid()
         )
 
