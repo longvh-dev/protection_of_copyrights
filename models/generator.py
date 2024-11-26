@@ -31,35 +31,50 @@ class ResidualBlock(nn.Module):
         return x + residual
 
 class Generator(nn.Module):
-    def __init__(self, input_channels=3):
+    def __init__(self, input_channels=3, dropout=0.5):
         super().__init__()
-        self.d64 = ConvBlock(input_channels * 2, 64)
-        self.d128 = ConvBlock(64, 128)
-        self.d256 = ConvBlock(128, 256)
+        self.d64 = nn.Sequential(
+            ConvBlock(input_channels * 2, 64),
+            nn.Dropout2d(p=dropout_rate)  # Sử dụng Dropout2d cho conv layers
+        )
+        self.d128 = nn.Sequential(
+            ConvBlock(64, 128),
+            nn.Dropout2d(p=dropout_rate)
+        )
+        self.d256 = nn.Sequential(
+            ConvBlock(128, 256),
+            nn.Dropout2d(p=dropout_rate)
+        )
         
         self.residual_blocks = nn.Sequential(*[ResidualBlock(256) for _ in range(4)])
         
         self.u128 = nn.Sequential(
-            nn.ConvTranspose2d(256, 128, 3, stride=2, padding=1, output_padding=1),
+            nn.ConvTranspose2d(256, 128, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.InstanceNorm2d(128),
-            nn.ReLU(inplace=True)
+            nn.ReLU(inplace=True),
+            nn.Dropout2d(p=dropout_rate)
         )
         self.u64 = nn.Sequential(
-            nn.ConvTranspose2d(128, 64, 3, stride=2, padding=1, output_padding=1),
+            nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.InstanceNorm2d(64),
-            nn.ReLU(inplace=True)
+            nn.ReLU(inplace=True),
+            nn.Dropout2d(p=dropout_rate)
         )
-
+        
+        # Remove u32 since the description only mentions u128 and u64
         self.u32 = nn.Sequential(
-            nn.ConvTranspose2d(64, 32, 3, stride=2, padding=1, output_padding=1),
+            nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.InstanceNorm2d(32),
-            nn.ReLU(inplace=True)
+            nn.ReLU(inplace=True),
+            nn.Dropout2d(p=dropout_rate)
         )
 
         self.final = nn.Sequential(
             nn.Conv2d(32, input_channels, 3, 1, 1),
             nn.Tanh()
         )
+        
+        self.dropout = nn.Dropout(0.5)
     
     def forward(self, x, m):
         # Debug prints
