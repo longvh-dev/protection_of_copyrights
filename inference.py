@@ -67,6 +67,7 @@ def main():
     image = Image.open("data/wikiart/Early_Renaissance/andrea-del-castagno_crucifixion-1.jpg").convert("RGB")
     image_size = image.size  # Save original image size
     print(image_size)
+    image_size = (image_size[1], image_size[0])
     watermark = create_watermark("aaron-siskind", image_size).convert("RGB")
 
     # convert to tensor
