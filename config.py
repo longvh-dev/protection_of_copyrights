@@ -4,7 +4,7 @@ from dataclasses import dataclass
 class TrainingConfig:
     batch_size: int = 8
     num_epochs: int = 200
-    lr: float = 0.001
+    lr: float = 0.0001
     beta1: float = 0.5
     beta2: float = 0.999
     alpha: float = 1.0  # GAN loss weight
