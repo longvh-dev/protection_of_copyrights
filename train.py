@@ -1,87 +1,139 @@
+import sys
+import os
+# sys.path.insert(0, os.path.join(os.path.__file__, ".."))
+
 import torch
 from torch.utils.data import DataLoader
 from datetime import datetime
 import os
+import argparse
+from PIL import Image
+from diffusers import StableDiffusionImg2ImgPipeline
+from torchvision import transforms
 
+
+from data_loader import create_watermark
 from models import Generator, Discriminator, VAEWrapper
 from losses import gan_loss, adversarial_loss, perturbation_loss
-from config import TrainingConfig, ModelConfig
+# from config import TrainingConfig, ModelConfig
 from data_loader import create_dataloader
-from evaluate import evaluate_adversarial_quality
+from tools.evaluate import evaluate_adversarial_quality
+
+
+def get_args():
+    args = argparse.ArgumentParser()
+    args.add_argument("--name", type=str, default="trial")
+    args.add_argument("--checkpoint", type=str, default=None)
+    args.add_argument("--num_epochs", type=int, default=100)
+    args.add_argument("--alpha", type=float, default=1)
+    args.add_argument("--beta", type=float, default=10)
+    args.add_argument("--c", type=float, default=10/255)
+    args.add_argument("--watermark_region", type=float, default=4.0)
+    args.add_argument("--input_channels", type=int, default=3)
+    args.add_argument("--vae_path", type=str,
+                      default="runwayml/stable-diffusion-v1-5")
+    args.add_argument("--lr", type=float, default=1e-3)
+    args.add_argument("--batch_size", type=int, default=8)
+    args.add_argument("--save_dir", type=str, default="checkpoints")
+    args.add_argument("--beta1", type=float, default=0.5)
+    args.add_argument("--beta2", type=float, default=0.999)
+    args.add_argument("--device", type=str, default="cuda")
+
+    args.add_argument("--train_dir", type=str, default="data/wikiart")
+    args.add_argument("--train_classes", type=str,
+                      default="data/wikiart/train_classes.csv")
+    args.add_argument("--eval_dir", type=str, default="data/wikiart")
+    args.add_argument("--eval_classes", type=str,
+                      default="data/wikiart/eval_classes.csv")
+
+    return args.parse_args()
 
 
 def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, config):
     device = real_images.device
 
+    def _reset_grad():
+        optimizer_G.zero_grad()
+        optimizer_D.zero_grad()
     # Train Discriminator
-    optimizer_D.zero_grad()
-    perturbation = G(real_images, watermark).detach()
-    fake_images = real_images + perturbation
-    d_loss = gan_loss(D, real_images, fake_images)
+    fake_images = G(real_images, watermark)
+    # fake_images = real_images + perturbation
+    d_loss = gan_loss(D, real_images, fake_images.detach())
+    _reset_grad()
     d_loss.backward()
     optimizer_D.step()
 
     # Train Generator
-    optimizer_G.zero_grad()
-    perturbation = G(real_images, watermark)
-    fake_images = real_images + perturbation
+    fake_images = G(real_images, watermark)
+    # fake_images = real_images + perturbation
 
     # objective func
-    g_loss = adversarial_loss(vae, fake_images, watermark) + \
-        config.alpha * gan_loss(D, real_images, fake_images) + \
-        config.beta * \
-        perturbation_loss(perturbation, watermark,
-                          config.c, config.watermark_region)
+    adv_loss_ = adversarial_loss(vae, fake_images, watermark)
+    gan_loss_ = gan_loss(D, real_images, fake_images)
+    # perturbation_loss_ = perturbation_loss(perturbation, watermark, config.c, config.watermark_region)
+    perturbation_loss_ = 0
+    g_loss = adv_loss_ + config.alpha * gan_loss_ + config.beta * perturbation_loss_
 
+    _reset_grad()
     g_loss.backward()
     optimizer_G.step()
 
-    return d_loss.item(), g_loss.item(), fake_images
+    g_loss_ = {'adv_loss': adv_loss_.item(), 'gan_loss': gan_loss_.item(), 'perturbation_loss': 0}#perturbation_loss_.item()} 
+    return d_loss.item(), g_loss_, fake_images
 
 
-def main():
-    # Load configs
-    train_config = TrainingConfig()
-    model_config = ModelConfig()
+def main(args, pipe):
+    test_image = Image.open('data/wikiart/Early_Renaissance/andrea-del-castagno_dante-alighieri.jpg').convert("RGB")
+    test_image_size = test_image.size[::-1]
 
     # Load dataset
-    image_dir = "data/wikiart"
-    classes_csv = "data/wikiart/train_classes.csv"
+    train_image_dir = args.train_dir
+    train_classes_csv = args.train_classes
 
+    eval_image_dir = args.eval_dir
+    eval_classes_csv = args.eval_classes
     # image_dir = "data/imagenet"
     # classes_csv = "data/imagenet/image_artist.csv"
 
     # Create dataloader
-    dataloader, metadata = create_dataloader(
-        image_dir=image_dir,
-        classes_csv=classes_csv,
-        batch_size=train_config.batch_size,
+    train_dataloader, metadata = create_dataloader(
+        image_dir=train_image_dir,
+        classes_csv=train_classes_csv,
+        batch_size=args.batch_size,
+    )
+
+    eval_dataloader, metadata = create_dataloader(
+        image_dir=eval_image_dir,
+        classes_csv=eval_classes_csv,
+        batch_size=args.batch_size,
     )
 
     # Initialize models
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    G = Generator(model_config.input_channels).to(device)
-    D = Discriminator(model_config.input_channels).to(device)
-    vae = VAEWrapper(model_config.vae_path).to(device)
+    G = Generator(args.input_channels).to(device)
+    D = Discriminator(args.input_channels).to(device)
+    vae = VAEWrapper(args.vae_path).to(device)
+    for param in vae.vae.parameters():
+        param.detach_()
 
     # Setup optimizers
     optimizer_G = torch.optim.Adam(
         G.parameters(),
-        lr=train_config.lr,
+        lr=args.lr,
         weight_decay=1e-5,
-        betas=(train_config.beta1, train_config.beta2)
+        betas=(args.beta1, args.beta2)
     )
     optimizer_D = torch.optim.Adam(
         D.parameters(),
-        lr=train_config.lr,
+        lr=args.lr,
         weight_decay=1e-5,
-        betas=(train_config.beta1, train_config.beta2)
+        betas=(args.beta1, args.beta2)
     )
 
     # Training loop
     start_epoch = 0
-    if train_config.checkpoint:
-        checkpoint = torch.load(train_config.checkpoint)
+    if args.checkpoint:
+        checkpoint = torch.load(args.checkpoint)
         start_epoch = checkpoint['epoch']
         G.load_state_dict(checkpoint['generator_state_dict'])
         D.load_state_dict(checkpoint['discriminator_state_dict'])
@@ -89,30 +141,74 @@ def main():
         optimizer_D.load_state_dict(checkpoint['optimizer_D_state_dict'])
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    save_dir = f"{train_config.save_dir}/{timestamp}"
+    save_dir = f"{args.save_dir}/{args.name}/{timestamp}"
     # make save_dir
 
     os.makedirs(save_dir, exist_ok=True)
-    for epoch in range(start_epoch, train_config.num_epochs+1):
-        for batch_idx, (real_images, watermark, _) in enumerate(dataloader):
+    for epoch in range(start_epoch, args.num_epochs+1):
+        G.train()
+        D.train()
+
+        for batch_idx, (real_images, watermark, _) in enumerate(train_dataloader):
             real_images = real_images.to(device)
             watermark = watermark.to(device)
 
             d_loss, g_loss, fake_images = train_step(
                 G, D, vae, optimizer_G, optimizer_D,
-                real_images, watermark, train_config
+                real_images, watermark, args
             )
 
-            if batch_idx % 10 == 0:
-                print(f"Epoch [{epoch}/{train_config.num_epochs}] "
-                      f"Batch [{batch_idx}] D_loss: {d_loss:.4f} "
-                      f"G_loss: {g_loss:.4f}")
-        if epoch % 5 == 0:
-            adv_metrics = evaluate_adversarial_quality(G, dataloader, device)
+            if batch_idx % 1 == 0:
+                print(f"Epoch [{epoch}/{args.num_epochs}] \t"
+                      f"Batch [{batch_idx}] D_loss: {d_loss:.4f} \t"
+                      f"adv_loss: {g_loss['adv_loss']:.4f} \t"
+                      f"gan_loss: {g_loss['gan_loss']:.4f} \t"
+                      f"perturbation_loss: {g_loss['perturbation_loss']:.4f} \t")
+                
+        ### save test image every epoch
+        G.eval()
+        watermark = create_watermark("vuhoanglong", test_image_size).convert("RGB")
+        transform = transforms.Compose([
+            transforms.Resize((512, 512)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
+        # reverse_transform = transforms.Compose([
+        #     transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
+        #     transforms.ToPILImage(),
+        #     transforms.Resize(test_image_size),
+        # ])
+        test_image = transform(test_image).unsqueeze(0).to(device)
+        watermark = transform(watermark).unsqueeze(0).to(device)
+        perturbation = G(test_image, watermark)
+        adv_image = test_image + perturbation
+        
+        adv_image_ = adv_image.squeeze(0).cpu()
+        adv_image_ = transforms.ToPILImage()(adv_image_)
+        adv_image_.save(f"save_adv_image/adv_image_epoch_{epoch}.png")
+        
+        # save adv image by 
+        # adv_image_resize = reverse_transform(adv_image.squeeze(0).cpu())
+        # adv_image_resize.save(f"save_adv_image/adv_image_epoch_{epoch}.png")
+        
+        diffusion_image = pipe(
+            prompt="A painting",
+            image=adv_image,
+            strength=0.1,
+        ).images[0]
+        del pipe
+        # diffusion_image = transforms.Resize(test_image_size)(diffusion_image)
+        diffusion_image.save(f"save_diffusion_image/diffusion_image_epoch_{epoch}.png")
+        
+        ### 
+        if epoch % 5 == 0 and epoch != 0:
+            G.eval()
+            adv_metrics = evaluate_adversarial_quality(
+                G, eval_dataloader, device)
             print("\nAdversarial Example Quality Metrics:")
-            print(f"MSE: {adv_metrics['mse']:.4f}")
-            print(f"PSNR: {adv_metrics['psnr']:.4f} dB")
-            print(f"SSIM: {adv_metrics['ssim']:.4f}")
+            print(f"MSE: {adv_metrics['mse']:.8f}")
+            print(f"PSNR: {adv_metrics['psnr']:.8f} dB")
+            print(f"SSIM: {adv_metrics['ssim']:.8f}")
         # Save models every 10 epochs
         if (epoch) % 10 == 0:
             torch.save({
@@ -125,4 +221,14 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+        "runwayml/stable-diffusion-v1-5",
+        torch_dtype=torch.float16,
+        use_safetensors=True,
+        safety_checker = None,
+        requires_safety_checker = False,
+    ).to('cuda')
+    pipe.enable_model_cpu_offload()
+    
+    args = get_args()
+    main(args, pipe)

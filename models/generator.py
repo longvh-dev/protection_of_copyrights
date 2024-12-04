@@ -31,10 +31,10 @@ class ResidualBlock(nn.Module):
         return x + residual
 
 class Generator(nn.Module):
-    def __init__(self, input_channels=3, dropout_rate=0.5):
+    def __init__(self, input_channels=3, dropout_rate=0.2):
         super().__init__()
         self.d64 = nn.Sequential(
-            ConvBlock(input_channels * 2, 64),
+            ConvBlock(input_channels, 64),
             nn.Dropout2d(p=dropout_rate)  # Sử dụng Dropout2d cho conv layers
         )
         self.d128 = nn.Sequential(
@@ -61,7 +61,6 @@ class Generator(nn.Module):
             nn.Dropout2d(p=dropout_rate)
         )
         
-        # Remove u32 since the description only mentions u128 and u64
         self.u32 = nn.Sequential(
             nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.InstanceNorm2d(32),
@@ -74,11 +73,12 @@ class Generator(nn.Module):
             nn.Tanh()
         )
         
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(dropout_rate)
     
     def forward(self, x, m):
         # Debug prints
-        combined = torch.cat([x, m], dim=1)
+        # combined = torch.cat([x, m], dim=1)
+        combined = x + m
         # print(f"Input size: {combined.shape}")
         
         e1 = self.d64(combined)
@@ -108,4 +108,4 @@ class Generator(nn.Module):
         # Ensure output matches input spatial dimensions
         assert out.shape[2:] == x.shape[2:], f"Output shape {out.shape} doesn't match input shape {x.shape}"
         
-        return out
+        return out + x

@@ -17,7 +17,7 @@ class WatermarkDataset(Dataset):
         image_dir: str,
         classes_csv: str,
         transform: Optional[transforms.Compose] = None,
-        image_size: Tuple[int, int] = (256, 256)
+        image_size: Tuple[int, int] = (512, 512)
     ):
         """
         Args:
@@ -42,16 +42,16 @@ class WatermarkDataset(Dataset):
             
         # Create mappings for artists and genres
         self.artists = sorted(self.metadata_df['artist'].unique())
-        self.genres = sorted(self.metadata_df['genre'].unique())
+        # self.genres = sorted(self.metadata_df['genre'].unique())
         self.artist_to_idx = {artist: idx for idx, artist in enumerate(self.artists)}
-        self.genre_to_idx = {genre: idx for idx, genre in enumerate(self.genres)}
+        # self.genre_to_idx = {genre: idx for idx, genre in enumerate(self.genres)}
         
         # Default transform if none provided
         if self.transform is None:
             self.transform = transforms.Compose([
                 transforms.Resize(self.image_size),
                 transforms.ToTensor(),
-                # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ])
             
         # self.transform = transform
@@ -65,8 +65,12 @@ class WatermarkDataset(Dataset):
         row = self.metadata_df.iloc[metadata_idx]
         
         # Load and transform image
-        img_path = os.path.join(self.image_dir, row['filename'])
-        image = Image.open(img_path).convert('RGB')
+        try:
+            img_path = os.path.join(self.image_dir, row['filename'])
+            image = Image.open(img_path).convert('RGB')
+        except:
+            # Skip if image is not found
+            return self.__getitem__(idx + 1)
         # image_size = image.size # Save original image size
         
         
@@ -82,9 +86,9 @@ class WatermarkDataset(Dataset):
         metadata = {
             'filename': row['filename'],
             'artist': artist_name,
-            'genre': row['genre'],
+            # 'genre': row['genre'],
             'artist_idx': self.artist_to_idx[artist_name],
-            'genre_idx': self.genre_to_idx[row['genre']],
+            # 'genre_idx': self.genre_to_idx[row['genre']],
             # 'watermark': watermark.shape,
         }
             
@@ -95,7 +99,7 @@ def create_dataloader(
     classes_csv: str,
     batch_size: int = 1,
     num_workers: int = 4,
-    image_size: Tuple[int, int] = (256, 256),
+    image_size: Tuple[int, int] = (512, 512),
     shuffle: bool = True
 ) -> Tuple[DataLoader, Dict]:
     """
@@ -130,20 +134,20 @@ def create_dataloader(
     # Create metadata dictionary with mappings
     metadata = {
         'num_artists': len(dataset.artists),
-        'num_genres': len(dataset.genres),
+        # 'num_genres': len(dataset.genres),
         'artist_to_idx': dataset.artist_to_idx,
-        'genre_to_idx': dataset.genre_to_idx,
+        # 'genre_to_idx': dataset.genre_to_idx,
         'idx_to_artist': {v: k for k, v in dataset.artist_to_idx.items()},
-        'idx_to_genre': {v: k for k, v in dataset.genre_to_idx.items()},
+        # 'idx_to_genre': {v: k for k, v in dataset.genre_to_idx.items()},
         'artists': dataset.artists,
-        'genres': dataset.genres
+        # 'genres': dataset.genres
     }
     
     return dataloader, metadata
 
 def create_watermark(
     text: str,
-    image_size: Tuple[int, int] = (256, 256),
+    image_size: Tuple[int, int] = (512, 512),
     font_size: int = 30,
     line_spacing: float = 1.25,
     noise_level: float = 0.1,
@@ -184,55 +188,59 @@ def create_watermark(
     # Draw watermark text lines with semi-transparent dark gray
     for i in range(num_lines):
         y = i * line_height
-        
+        draw.text((2, y), text, fill=(255, 255, 255, 255), font=font)
+    
+    # add small noise to watermark
+    watermark_image = watermark_image.rotate(1)
+    return watermark_image
         # Random horizontal offset
-        x_offset = random.uniform(-20, 20)
+    #     x_offset = random.uniform(-20, 20)
         
-        # Random opacity (alpha)
-        base_alpha = 180  # Semi-transparent base
-        alpha_noise = int(base_alpha * random.uniform(1 - noise_level, 1 + noise_level))
-        alpha_noise = max(0, min(255, alpha_noise))
+    #     # Random opacity (alpha)
+    #     base_alpha = 180  # Semi-transparent base
+    #     alpha_noise = int(base_alpha * random.uniform(1 - noise_level, 1 + noise_level))
+    #     alpha_noise = max(0, min(255, alpha_noise))
         
-        # Random color variation
-        color_noise = tuple(int(c * random.uniform(1 - noise_level, 1 + noise_level)) for c in (255, 255, 255))
+    #     # Random color variation
+    #     color_noise = tuple(int(c * random.uniform(1 - noise_level, 1 + noise_level)) for c in (255, 255, 255))
         
-        draw.text(
-            (x_offset + 2, y), 
-            text, 
-            fill=color_noise + (alpha_noise,), 
-            font=font
-        )
-    watermark_array = np.array(watermark_image)
+    #     draw.text(
+    #         (x_offset + 2, y), 
+    #         text, 
+    #         fill=color_noise + (alpha_noise,), 
+    #         font=font
+    #     )
+    # watermark_array = np.array(watermark_image)
 
-    # Add random noise to the alpha channel
-    noise = np.random.normal(
-        loc=0, 
-        scale=noise_level * 50, 
-        size=watermark_array.shape[:2]
-    )
+    # # Add random noise to the alpha channel
+    # noise = np.random.normal(
+    #     loc=0, 
+    #     scale=noise_level * 50, 
+    #     size=watermark_array.shape[:2]
+    # )
     
-    # Modify alpha channel with noise
-    noise_mask = noise.astype(np.int16)
-    watermark_array[:, :, 3] = np.clip(
-        watermark_array[:, :, 3].astype(np.int16) + noise_mask, 
-        0, 
-        255
-    )
+    # # Modify alpha channel with noise
+    # noise_mask = noise.astype(np.int16)
+    # watermark_array[:, :, 3] = np.clip(
+    #     watermark_array[:, :, 3].astype(np.int16) + noise_mask, 
+    #     0, 
+    #     255
+    # )
     
-    # Slight color variation in background
-    background_noise = np.random.normal(
-        loc=0, 
-        scale=noise_level * 10, 
-        size=watermark_array.shape[:2] + (3,)
-    )
+    # # Slight color variation in background
+    # background_noise = np.random.normal(
+    #     loc=0, 
+    #     scale=noise_level * 10, 
+    #     size=watermark_array.shape[:2] + (3,)
+    # )
     
-    watermark_array[:, :, :3] = np.clip(
-        watermark_array[:, :, :3].astype(np.int16) + background_noise.astype(np.int16), 
-        0, 
-        255
-    )
+    # watermark_array[:, :, :3] = np.clip(
+    #     watermark_array[:, :, :3].astype(np.int16) + background_noise.astype(np.int16), 
+    #     0, 
+    #     255
+    # )
     
-    return Image.fromarray(watermark_array)
+    # return Image.fromarray(watermark_array)
 
 # Example usage:
 if __name__ == "__main__":
@@ -249,7 +257,7 @@ if __name__ == "__main__":
     
     # Print dataset information
     print(f"Number of artists: {metadata['num_artists']}")
-    print(f"Number of genres: {metadata['num_genres']}")
+    # print(f"Number of genres: {metadata['num_genres']}")
     print(f"Available artists: {metadata['artists'][:5]}...")  # Show first 5 artists
     # print(f'Watermark shape: {metadata["watermark"]}')
     

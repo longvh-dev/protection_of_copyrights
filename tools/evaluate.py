@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from models import Generator, VAEWrapper
 from data_loader import create_dataloader
-from config import ModelConfig, TrainingConfig
+# from config import ModelConfig, TrainingConfig
 
 def calculate_mse(img1, img2):
     """Calculate MSE between two images"""
@@ -94,35 +94,35 @@ def evaluate_generation_quality(real_images, generated_images, device):
         'precision': precision
     }
 
-def main():
-    # Load configs
-    model_config = ModelConfig()
-    train_config = TrainingConfig()
+# def main():
+#     # Load configs
+#     # model_config = ModelConfig()
+#     # train_config = TrainingConfig()
     
-    # Setup device
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+#     # Setup device
+#     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Load dataset
-    dataloader, _ = create_dataloader(
-        image_dir="data/wikiart",
-        classes_csv="data/wikiart/eval_classes.csv",
-        batch_size=8,
-        shuffle=False
-    )
+#     # Load dataset
+#     dataloader, _ = create_dataloader(
+#         image_dir="data/wikiart",
+#         classes_csv="data/wikiart/eval_classes.csv",
+#         batch_size=8,
+#         shuffle=False
+#     )
     
-    # Load model
-    generator = Generator(model_config.input_channels).to(device)
-    checkpoint = torch.load('checkpoints/20241112-221929/checkpoint_epoch_200.pth')
-    generator.load_state_dict(checkpoint['generator_state_dict'])
-    generator.eval()
+#     # Load model
+#     generator = Generator(model_config.input_channels).to(device)
+#     checkpoint = torch.load('checkpoints/20241112-221929/checkpoint_epoch_200.pth')
+#     generator.load_state_dict(checkpoint['generator_state_dict'])
+#     generator.eval()
     
-    # Evaluate adversarial quality
-    adv_metrics = evaluate_adversarial_quality(generator, dataloader, device)
-    print("\nAdversarial Example Quality Metrics:")
-    print(f"MSE: {adv_metrics['mse']:.4f}")
-    print(f"PSNR: {adv_metrics['psnr']:.4f} dB")
-    print(f"SSIM: {adv_metrics['ssim']:.4f}")
-    torch.cuda.empty_cache()
+#     # Evaluate adversarial quality
+#     adv_metrics = evaluate_adversarial_quality(generator, dataloader, device)
+#     print("\nAdversarial Example Quality Metrics:")
+#     print(f"MSE: {adv_metrics['mse']:.4f}")
+#     print(f"PSNR: {adv_metrics['psnr']:.4f} dB")
+#     print(f"SSIM: {adv_metrics['ssim']:.4f}")
+#     torch.cuda.empty_cache()
     
     # Collect real and generated images for FID
     # real_images = []
@@ -155,5 +155,5 @@ def main():
     # print(f"FID: {gen_metrics['fid']:.4f}")
     # print(f"Precision: {gen_metrics['precision']:.4f}")
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

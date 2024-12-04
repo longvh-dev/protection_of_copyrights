@@ -11,7 +11,7 @@ class Discriminator(nn.Module):
             self.conv_block(128, 256),
             self.conv_block(256, 512),
             self.conv_block(512, 1024),
-            nn.Conv2d(1024, 1, 4, 1, 0),
+            nn.Conv2d(1024, 1, 16, 2, 0), #16*16 or 4x4?
             nn.Sigmoid()
         )
 
@@ -24,4 +24,5 @@ class Discriminator(nn.Module):
 
     def forward(self, x):
         # x = torch.flatten(self.model(x), 1)
-        return self.model(x)
+        x = self.model(x)
+        return x
