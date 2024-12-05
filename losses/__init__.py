@@ -32,7 +32,7 @@ def adversarial_loss(vae, x_prime, watermark):
 
 
 def perturbation_loss(perturbation, watermark, c=0.1, watermark_region=4):
-    weighted_perturbation = torch.matmul(perturbation, (1 + watermark * watermark_region))
+    weighted_perturbation = perturbation * (1 + watermark * watermark_region)
     # l2_norm = torch.norm(weighted_perturbation, p=2)
     weighted_perturbation = l2norm(weighted_perturbation, dim=1)
     mask = ((weighted_perturbation - c)>0) + 0 
