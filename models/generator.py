@@ -34,7 +34,7 @@ class Generator(nn.Module):
     def __init__(self, input_channels=3, dropout_rate=0.2):
         super().__init__()
         self.d64 = nn.Sequential(
-            ConvBlock(input_channels, 64),
+            ConvBlock(input_channels*2, 64),
             nn.Dropout2d(p=dropout_rate)  # Sử dụng Dropout2d cho conv layers
         )
         self.d128 = nn.Sequential(
