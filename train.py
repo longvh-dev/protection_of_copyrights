@@ -71,14 +71,14 @@ def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, conf
     # objective func
     adv_loss_ = adversarial_loss(vae, fake_images, watermark)
     gan_loss_ = gan_loss(D, real_images, fake_images)
-    # perturbation_loss_ = perturbation_loss(perturbation, watermark, config.c, config.watermark_region)
-    perturbation_loss_ = 0
+    perturbation_loss_ = perturbation_loss(perturbation, watermark, config.c, config.watermark_region)
+    # perturbation_loss_ = 0
     g_loss = adv_loss_ + config.alpha * gan_loss_ + config.beta * perturbation_loss_
 
     g_loss.backward()
     optimizer_G.step()
 
-    g_loss_ = {'adv_loss': adv_loss_.item(), 'gan_loss': gan_loss_.item(), 'perturbation_loss': 0}#perturbation_loss_.item()} 
+    g_loss_ = {'adv_loss': adv_loss_.item(), 'gan_loss': gan_loss_.item(), 'perturbation_loss': perturbation_loss_.item()} 
     return d_loss.item(), g_loss_, fake_images
 
 
