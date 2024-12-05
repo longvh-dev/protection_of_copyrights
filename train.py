@@ -71,7 +71,7 @@ def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, conf
     # objective func
     adv_loss_ = adversarial_loss(vae, fake_images, watermark)
     gan_loss_ = gan_loss(D, real_images, fake_images)
-    perturbation_loss_ = perturbation_loss(perturbation, watermark, config.c, config.watermark_region)
+    perturbation_loss_ = perturbation_loss(fake_images-real_images, watermark, config.c, config.watermark_region)
     # perturbation_loss_ = 0
     g_loss = adv_loss_ + config.alpha * gan_loss_ + config.beta * perturbation_loss_
 
