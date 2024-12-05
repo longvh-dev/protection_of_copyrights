@@ -178,10 +178,10 @@ def main(args, pipe):
         #     transforms.ToPILImage(),
         #     transforms.Resize(test_image_size),
         # ])
-        test_image = transform(test_image).unsqueeze(0).to(device)
+        image = transform(test_image).unsqueeze(0).to(device)
         watermark = transform(watermark).unsqueeze(0).to(device)
-        perturbation = G(test_image, watermark)
-        adv_image = test_image + perturbation
+        perturbation = G(image, watermark)
+        adv_image = image + perturbation
         
         adv_image_ = adv_image.squeeze(0).cpu()
         adv_image_ = transforms.ToPILImage()(adv_image_)
