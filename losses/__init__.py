@@ -26,7 +26,7 @@ def gan_loss(D, real_images, fake_images):
 def adversarial_loss(vae, x_prime, watermark):
     latent_watermark = l2norm(vae.encode(watermark))
     latent_adversarial = l2norm(vae.encode(x_prime))
-    return torch.norm(latent_watermark-latent_adversarial, p=2, dim=1)
+    return torch.norm(latent_watermark-latent_adversarial, p=2, dim=1).mean()
     # return F.mse_loss(latent_adversarial, latent_watermark) 
 
 
