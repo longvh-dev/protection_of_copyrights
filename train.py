@@ -196,7 +196,7 @@ def main(args, pipe):
             image=adv_image,
             strength=0.1,
         ).images[0]
-        del pipe
+        # del pipe
         # diffusion_image = transforms.Resize(test_image_size)(diffusion_image)
         diffusion_image.save(f"save_diffusion_image/diffusion_image_epoch_{epoch}.png")
         
