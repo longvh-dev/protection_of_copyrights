@@ -149,6 +149,24 @@ def main(args, pipe):
     # make save_dir
 
     os.makedirs(save_dir, exist_ok=True)
+    
+    # pretrain generator
+    G.train()
+    for epoch in range(5):
+        for batch_idx, (real_images, watermark, _) in enumerate(train_dataloader):
+            real_images = real_images.to(device)
+            watermark = watermark.to(device)
+            fake_images = G(real_images, watermark)
+            current_batch_size = real_images.size(0)
+            g_loss = gan_loss(D(fake_images), torch.full((current_batch_size, 1), 1.0, device=device))
+            optimizer_G.zero_grad()
+            g_loss.backward()
+            optimizer_G.step()
+            if batch_idx % 10 == 0:
+                print(f"Pretrain Epoch [{epoch}/{5}] \t"
+                      f"Batch [{batch_idx}] \t"
+                      f"adv_loss: {g_loss:.4f} \t")
+    
     for epoch in range(start_epoch, args.num_epochs+1):
         G.train()
         D.train()
