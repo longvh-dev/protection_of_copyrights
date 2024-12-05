@@ -21,8 +21,8 @@ def gan_loss(D, real_images, fake_images):
     real_pred = D(real_images)
     fake_pred = D(fake_images)
     
-    real_loss = F.binary_cross_entropy_with_logits(real_pred, torch.ones_like(real_pred))
-    fake_loss = F.binary_cross_entropy_with_logits(fake_pred, torch.zeros_like(fake_pred))
+    real_loss = F.binary_cross_entropy(real_pred, torch.ones_like(real_pred))
+    fake_loss = F.binary_cross_entropy(fake_pred, torch.zeros_like(fake_pred))
     
     return real_loss + fake_loss
 
