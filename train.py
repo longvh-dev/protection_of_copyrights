@@ -55,15 +55,16 @@ def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, conf
     def _reset_grad():
         optimizer_G.zero_grad()
         optimizer_D.zero_grad()
+    _reset_grad()
     # Train Discriminator
     fake_images = G(real_images, watermark)
     # fake_images = real_images + perturbation
     d_loss = gan_loss(D, real_images, fake_images.detach())
-    _reset_grad()
     d_loss.backward()
     optimizer_D.step()
 
     # Train Generator
+    _reset_grad()
     fake_images = G(real_images, watermark)
     # fake_images = real_images + perturbation
 
@@ -74,7 +75,6 @@ def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, conf
     perturbation_loss_ = 0
     g_loss = adv_loss_ + config.alpha * gan_loss_ + config.beta * perturbation_loss_
 
-    _reset_grad()
     g_loss.backward()
     optimizer_G.step()
 
