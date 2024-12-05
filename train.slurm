@@ -1,7 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=train_model
 #SBATCH --output=logs_%j.out             # File log 
-#SBATCH --partition=gpu                  
 
 python -u train.py \
     --num_epochs 100 \
