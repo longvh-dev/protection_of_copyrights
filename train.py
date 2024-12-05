@@ -195,18 +195,17 @@ def main(args, pipe):
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
-        # reverse_transform = transforms.Compose([
-        #     transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
-        #     transforms.ToPILImage(),
-        #     transforms.Resize(test_image_size),
-        # ])
+        reverse_transform = transforms.Compose([
+            transforms.Normalize(mean=[-m / s for m, s in zip((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))], std=[1 / s for s in (0.5, 0.5, 0.5)]),
+            transforms.ToPILImage(),
+            # transforms.Resize(test_image_size),
+        ])
         image = transform(test_image).unsqueeze(0).to(device)
         watermark = transform(watermark).unsqueeze(0).to(device)
         perturbation = G(image, watermark)
         adv_image = image + perturbation
         
-        adv_image_ = adv_image.squeeze(0).cpu()
-        adv_image_ = transforms.ToPILImage()(adv_image_)
+        adv_image_ = reverse_transform(adv_image_.squeeze(0).cpu())
         adv_image_.save(f"save_adv_image/adv_image_epoch_{epoch}.png")
         
         # save adv image by 
