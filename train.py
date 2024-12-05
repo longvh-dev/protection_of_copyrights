@@ -182,10 +182,10 @@ def main(args, pipe):
 
             if batch_idx % 1 == 0:
                 print(f"Epoch [{epoch}/{args.num_epochs}] \t"
-                      f"Batch [{batch_idx}] D_loss: {d_loss:.4f} \t"
-                      f"adv_loss: {g_loss['adv_loss']:.4f} \t"
-                      f"gan_loss: {g_loss['gan_loss']:.4f} \t"
-                      f"perturbation_loss: {g_loss['perturbation_loss']:.4f} \t")
+                      f"Batch [{batch_idx}] D_loss: {d_loss:.8f} \t"
+                      f"adv_loss: {g_loss['adv_loss']:.8f} \t"
+                      f"gan_loss: {g_loss['gan_loss']:.8f} \t"
+                      f"perturbation_loss: {g_loss['perturbation_loss']:.8f} \t")
                 
         ### save test image every epoch
         G.eval()
