@@ -18,9 +18,13 @@ def l2norm(X, dim=-1, eps=1e-8):
     return X
 
 def gan_loss(D, real_images, fake_images):
-    real_loss = torch.mean(torch.log(D(real_images) + 1e-10))
-    fake_loss = torch.mean(torch.log(1 - D(fake_images) + 1e-10))
-    return -(real_loss + fake_loss)
+    real_pred = D(real_images)
+    fake_pred = D(fake_images)
+    
+    real_loss = F.binary_cross_entropy_with_logits(real_pred, torch.ones_like(real_pred))
+    fake_loss = F.binary_cross_entropy_with_logits(fake_pred, torch.zeros_like(fake_pred))
+    
+    return real_loss + fake_loss
 
 
 def adversarial_loss(vae, x_prime, watermark):
