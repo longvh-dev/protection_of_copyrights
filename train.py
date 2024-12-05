@@ -205,7 +205,7 @@ def main(args, pipe):
         perturbation = G(image, watermark)
         adv_image = image + perturbation
         
-        adv_image_ = reverse_transform(adv_image_.squeeze(0).cpu())
+        adv_image_ = reverse_transform(adv_image.squeeze(0).cpu())
         adv_image_.save(f"save_adv_image/adv_image_epoch_{epoch}.png")
         
         # save adv image by 
