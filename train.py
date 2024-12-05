@@ -51,6 +51,10 @@ def get_args():
 
 def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, config):
     device = real_images.device
+    current_batch_size = real_images.size(0)
+    valid = torch.full((current_batch_size, 1), 0.9, device=device)
+    fake = torch.full((current_batch_size, 1), 0.1, device=device)
+
 
     def _reset_grad():
         optimizer_G.zero_grad()
@@ -59,7 +63,7 @@ def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, conf
     # Train Discriminator
     fake_images = G(real_images, watermark)
     # fake_images = real_images + perturbation
-    d_loss = gan_loss(D, real_images, fake_images.detach())
+    d_loss = gan_loss(D(real_images), valid) + gan_loss(D(fake_images.detach()), fake)
     d_loss.backward()
     optimizer_D.step()
 
@@ -70,7 +74,7 @@ def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, conf
 
     # objective func
     adv_loss_ = adversarial_loss(vae, fake_images, watermark)
-    gan_loss_ = gan_loss(D, real_images, fake_images)
+    gan_loss_ = gan_loss(D(fake_images), valid)
     perturbation_loss_ = perturbation_loss(fake_images-real_images, watermark, config.c, config.watermark_region)
     # perturbation_loss_ = 0
     g_loss = adv_loss_ + config.alpha * gan_loss_ + config.beta * perturbation_loss_
