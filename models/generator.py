@@ -77,8 +77,8 @@ class Generator(nn.Module):
     
     def forward(self, x, m):
         # Debug prints
-        # combined = torch.cat([x, m], dim=1)
-        combined = x + m
+        combined = torch.cat([x, m], dim=1)
+        # combined = x + m
         # print(f"Input size: {combined.shape}")
         
         e1 = self.d64(combined)
