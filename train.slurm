@@ -1,6 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=train_model
 #SBATCH --output=logs_%j.out             # File log 
+#SBATCH --nodes=1
+#SBATCH --ntasks=4
+#SBATCH --gres=gpu:1
 
 python -u train.py \
     --num_epochs 100 \
