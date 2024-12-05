@@ -165,7 +165,7 @@ def main(args, pipe):
             if batch_idx % 10 == 0:
                 print(f"Pretrain Epoch [{epoch}/{5}] \t"
                       f"Batch [{batch_idx}] \t"
-                      f"adv_loss: {g_loss:.4f} \t")
+                      f"g_gan_loss: {g_loss:.4f} \t")
     
     for epoch in range(start_epoch, args.num_epochs+1):
         G.train()
