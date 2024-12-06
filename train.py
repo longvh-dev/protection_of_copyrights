@@ -143,6 +143,23 @@ def main(args, pipe):
         D.load_state_dict(checkpoint['discriminator_state_dict'])
         optimizer_G.load_state_dict(checkpoint['optimizer_G_state_dict'])
         optimizer_D.load_state_dict(checkpoint['optimizer_D_state_dict'])
+    else:
+        # pretrain generator
+        G.train()
+        for epoch in range(5):
+            for batch_idx, (real_images, watermark, _) in enumerate(train_dataloader):
+                real_images = real_images.to(device)
+                watermark = watermark.to(device)
+                fake_images = G(real_images, watermark)
+                current_batch_size = real_images.size(0)
+                g_loss = gan_loss(D(fake_images), torch.full((current_batch_size, 1), 1.0, device=device))
+                optimizer_G.zero_grad()
+                g_loss.backward()
+                optimizer_G.step()
+                if batch_idx % 10 == 0:
+                    print(f"Pretrain Epoch [{epoch}/{5}] \t"
+                        f"Batch [{batch_idx}] \t"
+                        f"g_gan_loss: {g_loss:.4f} \t")
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     save_dir = f"{args.save_dir}/{args.name}/{timestamp}"
@@ -150,22 +167,7 @@ def main(args, pipe):
 
     os.makedirs(save_dir, exist_ok=True)
     
-    # pretrain generator
-    G.train()
-    for epoch in range(5):
-        for batch_idx, (real_images, watermark, _) in enumerate(train_dataloader):
-            real_images = real_images.to(device)
-            watermark = watermark.to(device)
-            fake_images = G(real_images, watermark)
-            current_batch_size = real_images.size(0)
-            g_loss = gan_loss(D(fake_images), torch.full((current_batch_size, 1), 1.0, device=device))
-            optimizer_G.zero_grad()
-            g_loss.backward()
-            optimizer_G.step()
-            if batch_idx % 10 == 0:
-                print(f"Pretrain Epoch [{epoch}/{5}] \t"
-                      f"Batch [{batch_idx}] \t"
-                      f"g_gan_loss: {g_loss:.4f} \t")
+    
     
     for epoch in range(start_epoch, args.num_epochs+1):
         G.train()
