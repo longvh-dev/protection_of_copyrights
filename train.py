@@ -133,6 +133,8 @@ def main(args, pipe):
         weight_decay=1e-5,
         betas=(args.beta1, args.beta2)
     )
+    scheduler_G = torch.optim.lr_scheduler.StepLR(optimizer_G, step_size=30, gamma=0.1)
+    scheduler_D = torch.optim.lr_scheduler.StepLR(optimizer_D, step_size=30, gamma=0.1)
 
     # Training loop
     start_epoch = 0
@@ -188,6 +190,9 @@ def main(args, pipe):
                       f"adv_loss: {g_loss['adv_loss']:.8f} \t"
                       f"gan_loss: {g_loss['gan_loss']:.8f} \t"
                       f"perturbation_loss: {g_loss['perturbation_loss']:.8f} \t")
+        scheduler_G.step(g_loss['gan_loss'])
+        scheduler_D.step(d_loss) 
+        
                 
         ### save test image every epoch
         G.eval()
