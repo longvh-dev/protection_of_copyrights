@@ -197,17 +197,26 @@ def main(args, pipe):
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
-        reverse_transform = transforms.Compose([
-            transforms.Normalize(mean=[-m / s for m, s in zip((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))], std=[1 / s for s in (0.5, 0.5, 0.5)]),
-            transforms.ToPILImage(),
-            # transforms.Resize(test_image_size),
-        ])
+        
+        def reverse_transform(tensor):
+            # Bước 1: Denormalize ảnh
+            tensor = tensor * torch.tensor([0.5, 0.5, 0.5]).view(3, 1, 1) + torch.tensor([0.5, 0.5, 0.5]).view(3, 1, 1)
+            
+            # Bước 2: Chuyển từ tensor về dạng PIL Image
+            tensor = torch.clamp(tensor, 0, 1)
+            
+            # Chuyển tensor về dạng PIL Image
+            to_pil = transforms.ToPILImage()
+            image = to_pil(tensor)
+            
+            return image
+        
         image = transform(test_image).unsqueeze(0).to(device)
         watermark = transform(watermark).unsqueeze(0).to(device)
-        perturbation = G(image, watermark)
-        adv_image = image + perturbation
+        # perturbation = G(image, watermark)
+        adv_image = G(image, watermark)
         
-        adv_image_ = reverse_transform(adv_image.squeeze(0).cpu())
+        adv_image_ = reverse_transform(adv_image[0].cpu())
         adv_image_.save(f"save_adv_image/adv_image_epoch_{epoch}.png")
         
         # save adv image by 
