@@ -263,4 +263,5 @@ if __name__ == "__main__":
     pipe.enable_model_cpu_offload()
     
     args = get_args()
+    print(args)
     main(args, pipe)
