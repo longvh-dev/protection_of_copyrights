@@ -52,9 +52,10 @@ def get_args():
 def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, config):
     device = real_images.device
     current_batch_size = real_images.size(0)
-    valid = torch.full((current_batch_size, 1), 0.9, device=device)
-    fake = torch.full((current_batch_size, 1), 0.1, device=device)
-
+    real_label = torch.FloatTensor(
+        current_batch_size, 1).uniform_(0.8, 1.0).to(device)
+    fake_label = torch.FloatTensor(
+        current_batch_size, 1).uniform_(0.0, 0.2).to(device)
 
     def _reset_grad():
         optimizer_G.zero_grad()
@@ -63,7 +64,8 @@ def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, conf
     # Train Discriminator
     fake_images = G(real_images, watermark)
     # fake_images = real_images + perturbation
-    d_loss = gan_loss(D(real_images), valid) + gan_loss(D(fake_images.detach()), fake)
+    d_loss = gan_loss(D(real_images), real_label) + \
+        gan_loss(D(fake_images.detach()), fake_label)
     d_loss.backward()
     optimizer_D.step()
 
@@ -74,7 +76,7 @@ def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, conf
 
     # objective func
     adv_loss_ = adversarial_loss(vae, fake_images, watermark)
-    gan_loss_ = gan_loss(D(fake_images), valid)
+    gan_loss_ = gan_loss(D(fake_images), real_label)
     perturbation_loss_ = perturbation_loss(fake_images-real_images, watermark, config.c, config.watermark_region)
     # perturbation_loss_ = 0
     g_loss = adv_loss_ + config.alpha * gan_loss_ + config.beta * perturbation_loss_
@@ -124,17 +126,17 @@ def main(args, pipe):
     optimizer_G = torch.optim.AdamW(
         G.parameters(),
         lr=args.lr,
-        weight_decay=1e-2,
+        weight_decay=1e-4,
         betas=(args.beta1, args.beta2)
     )
     optimizer_D = torch.optim.Adam(
         D.parameters(),
-        lr=args.lr*4,
-        weight_decay=1e-2,
+        lr=args.lr*2,
+        weight_decay=1e-4,
         betas=(args.beta1, args.beta2)
     )
-    scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, mode='min', factor=0.5, patience=5, verbose=True)
-    scheduler_D = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D, mode='min', factor=0.5, patience=5, verbose=True)
+    # scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, mode='min', factor=0.5, patience=5, verbose=True)
+    # scheduler_D = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_D, mode='min', factor=0.5, patience=5, verbose=True)
 
     # Training loop
     start_epoch = 0
@@ -190,8 +192,8 @@ def main(args, pipe):
                       f"adv_loss: {g_loss['adv_loss']:.8f} \t"
                       f"gan_loss: {g_loss['gan_loss']:.8f} \t"
                       f"perturbation_loss: {g_loss['perturbation_loss']:.8f} \t")
-        scheduler_G.step(g_loss['gan_loss'])
-        scheduler_D.step(d_loss) 
+        # scheduler_G.step(g_loss['gan_loss'])
+        # scheduler_D.step(d_loss) 
         
                 
         ### save test image every epoch
