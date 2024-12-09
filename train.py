@@ -121,16 +121,16 @@ def main(args, pipe):
         param.detach_()
 
     # Setup optimizers
-    optimizer_G = torch.optim.Adam(
+    optimizer_G = torch.optim.AdamW(
         G.parameters(),
         lr=args.lr,
-        weight_decay=1e-5,
+        weight_decay=1e-2,
         betas=(args.beta1, args.beta2)
     )
     optimizer_D = torch.optim.Adam(
         D.parameters(),
-        lr=args.lr,
-        weight_decay=1e-5,
+        lr=args.lr*4,
+        weight_decay=1e-2,
         betas=(args.beta1, args.beta2)
     )
     scheduler_G = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_G, mode='min', factor=0.5, patience=5, verbose=True)
