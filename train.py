@@ -4,12 +4,13 @@ import os
 
 import torch
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 from datetime import datetime
 import os
 import argparse
 from PIL import Image
 from diffusers import StableDiffusionImg2ImgPipeline
-from torchvision import transforms
+from torchvision import transforms, models
 
 
 from data_loader import create_watermark
@@ -47,6 +48,73 @@ def get_args():
                       default="data/wikiart/eval_classes.csv")
 
     return args.parse_args()
+
+def pretrain_generator(G, vae, train_dataloader, device, save_dir, num_epochs=5):
+    """Pretrain generator with reconstruction and perceptual losses"""
+    G.train()
+    vgg = models.vgg11(pretrained=True).features[:8].to(device).eval()  # Only use first few layers
+    for param in vgg.parameters():
+        param.requires_grad = False
+    best_loss = float('inf')
+    patience = 3
+    patience_counter = 0
+    
+    optimizer = torch.optim.AdamW(G.parameters(), lr=1e-4)
+    
+    for epoch in range(num_epochs):
+        total_loss = 0
+        for batch_idx, (real_images, watermark, _) in enumerate(train_dataloader):
+            real_images = real_images.to(device)
+            watermark = watermark.to(device)
+            
+            # Generate watermarked images
+            watermarked = G(real_images, watermark)
+            
+            # Reconstruction loss (L1)
+            recon_loss = F.l1_loss(watermarked, real_images)
+            
+            # Perceptual loss
+            real_features = vgg(real_images)
+            fake_features = vgg(watermarked)
+            perceptual_loss = F.mse_loss(fake_features, real_features)
+            
+            # Watermark embedding loss
+            watermark_loss = adversarial_loss(vae, watermarked, watermark)
+            
+            # Total loss
+            loss = recon_loss + 0.1 * perceptual_loss + 0.01 * watermark_loss
+            
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            
+            total_loss += loss.item()
+            
+            if batch_idx % 10 == 0:
+                print(f"Pretrain [{epoch}/{num_epochs}] "
+                      f"Batch [{batch_idx}] Loss: {loss.item():.4f}")
+        
+        avg_loss = total_loss / len(train_dataloader)
+        
+        # Save best model
+        if avg_loss < best_loss:
+            best_loss = avg_loss
+            torch.save({
+                'epoch': epoch,
+                'generator_state_dict': G.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': best_loss
+            }, f'{save_dir}/pretrained_generator.pth')
+            patience_counter = 0
+        else:
+            patience_counter += 1
+            
+        # Early stopping
+        if patience_counter >= patience:
+            print("Early stopping triggered")
+            break
+            
+    return G
 
 
 def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, config):
@@ -91,6 +159,12 @@ def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, conf
 def main(args, pipe):
     test_image = Image.open('data/wikiart/Early_Renaissance/andrea-del-castagno_dante-alighieri.jpg').convert("RGB")
     test_image_size = test_image.size[::-1]
+
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    save_dir = f"{args.save_dir}/{args.name}/{timestamp}"
+    # make save_dir
+
+    os.makedirs(save_dir, exist_ok=True)
 
     # Load dataset
     train_image_dir = args.train_dir
@@ -149,28 +223,7 @@ def main(args, pipe):
         optimizer_D.load_state_dict(checkpoint['optimizer_D_state_dict'])
     else:
         # pretrain generator
-        G.train()
-        for epoch in range(5):
-            for batch_idx, (real_images, watermark, _) in enumerate(train_dataloader):
-                real_images = real_images.to(device)
-                watermark = watermark.to(device)
-                fake_images = G(real_images, watermark)
-                current_batch_size = real_images.size(0)
-                g_loss = gan_loss(D(fake_images), torch.full((current_batch_size, 1), 1.0, device=device))
-                optimizer_G.zero_grad()
-                g_loss.backward()
-                optimizer_G.step()
-                if batch_idx % 10 == 0:
-                    print(f"Pretrain Epoch [{epoch}/{5}] \t"
-                        f"Batch [{batch_idx}] \t"
-                        f"g_gan_loss: {g_loss:.4f} \t")
-
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    save_dir = f"{args.save_dir}/{args.name}/{timestamp}"
-    # make save_dir
-
-    os.makedirs(save_dir, exist_ok=True)
-    
+        G = pretrain_generator(G, vae, train_dataloader, device, save_dir, num_epochs=5)
     
     
     for epoch in range(start_epoch, args.num_epochs+1):
