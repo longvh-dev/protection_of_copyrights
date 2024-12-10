@@ -37,13 +37,13 @@ def adversarial_loss(vae, x_prime, watermark):
 def perturbation_loss(perturbation, watermark, c=0.1, watermark_region=4):
     weighted_perturbation = perturbation * (1 + watermark * watermark_region)
     # l2_norm = torch.norm(weighted_perturbation, p=2)
-    # weighted_perturbation = l2norm(weighted_perturbation, dim=1)
-    # mask = ((weighted_perturbation - c)>0) + 0 
-    # threshold_loss = (weighted_perturbation * mask).mean()
+    weighted_perturbation = l2norm(weighted_perturbation, dim=1)
+    mask = ((weighted_perturbation - c)>0) + 0 
+    threshold_loss = (weighted_perturbation * mask).mean()
     # threshold_loss = torch.max(torch.zeros_like(weighted_perturbation), weighted_perturbation - c).mean()
-    pert_norm = torch.norm(weighted_perturbation, p=2, dim=(1, 2, 3))
+    # pert_norm = torch.norm(weighted_perturbation, p=2, dim=(1, 2, 3))
 
-    # Soft hinge loss variant: penalize exceedance of threshold
-    threshold_loss = torch.mean(F.relu(pert_norm - c))
+    # # Soft hinge loss variant: penalize exceedance of threshold
+    # threshold_loss = torch.mean(F.relu(pert_norm - c))
     return threshold_loss # + small_perturbation_penalty
 
