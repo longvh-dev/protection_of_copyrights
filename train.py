@@ -280,11 +280,16 @@ def main(args, pipe):
         
         image = transform(test_image).unsqueeze(0).to(device)
         watermark = transform(watermark).unsqueeze(0).to(device)
-        # perturbation = G(image, watermark)
-        adv_image = G(image, watermark)
+        perturbation = G(image, watermark)
+        adv_image = perturbation + image
+        adv_image_clamp = torch.clamp(perturbation, -0.3, 0.3) + image
+        adv_image_clamp = torch.clamp(adv_image, 0, 1)
         
         adv_image_ = reverse_transform(adv_image[0].cpu())
         adv_image_.save(f"save_adv_image/adv_image_epoch_{epoch}.png")
+        
+        adv_image_clamp_ = reverse_transform(adv_image_clamp[0].cpu())
+        adv_image_clamp_.save(f"save_adv_image/adv_image_epoch_{epoch}_clamp.png")
         
         # save adv image by 
         # adv_image_resize = reverse_transform(adv_image.squeeze(0).cpu())
