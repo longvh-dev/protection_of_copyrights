@@ -215,7 +215,7 @@ def main(args, pipe):
     # Training loop
     start_epoch = 0
     if args.checkpoint:
-        checkpoint = torch.load(args.checkpoint)
+        checkpoint = torch.load(args.checkpoint, weights_only=True)
         start_epoch = checkpoint['epoch']
         G.load_state_dict(checkpoint['generator_state_dict'])
         D.load_state_dict(checkpoint['discriminator_state_dict'])
@@ -225,6 +225,11 @@ def main(args, pipe):
         # pretrain generator
         G = pretrain_generator(G, vae, train_dataloader, device, save_dir, num_epochs=5)
     
+    
+    
+    
+    
+    torch.cuda.empty_cache()
     
     for epoch in range(start_epoch, args.num_epochs+1):
         G.train()
