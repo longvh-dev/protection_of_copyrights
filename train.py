@@ -120,40 +120,42 @@ def pretrain_generator(G, vae, train_dataloader, device, save_dir, num_epochs=5)
 def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, config):
     device = real_images.device
     current_batch_size = real_images.size(0)
-    real_label = torch.FloatTensor(
-        current_batch_size, 1).uniform_(0.8, 1.0).to(device)
-    fake_label = torch.FloatTensor(
-        current_batch_size, 1).uniform_(0.0, 0.2).to(device)
 
-    def _reset_grad():
-        optimizer_G.zero_grad()
-        optimizer_D.zero_grad()
-    _reset_grad()
     # Train Discriminator
-    fake_images = G(real_images, watermark)
-    # fake_images = real_images + perturbation
-    d_loss = gan_loss(D(real_images), real_label) + \
-        gan_loss(D(fake_images.detach()), fake_label)
-    d_loss.backward()
-    optimizer_D.step()
+    for _ in range(1):
+        perturbation = G(real_images, watermark)
+        adv_images = torch.clamp(perturbation, -0.3, 0.3) + real_images
+        adv_images = torch.clamp(adv_images, 0, 1)
+        
+        optimizer_D.zero_grad()
+        
+        pred_real = D(real_images)
+        loss_D_real = F.mse_loss(pred_real, torch.ones_like(pred_real, device=device))
+        loss_D_real.backward()
+        
+        pred_fake = D(adv_images.detach())
+        loss_D_fake = F.mse_loss(pred_fake, torch.zeros_like(pred_fake, device=device))
+        loss_D_fake.backward()
+        
+        loss_D_GAN = loss_D_real + loss_D_fake
+        optimizer_D.step()
 
     # Train Generator
-    _reset_grad()
-    fake_images = G(real_images, watermark)
-    # fake_images = real_images + perturbation
+    for _ in range(1):
+        optimizer_G.zero_grad()
+        pred_fake = D(adv_images)
+        loss_G_fake = F.mse_loss(pred_fake, torch.ones_like(pred_fake, device=device))
+        loss_G_fake.backward(retain_graph=True)
 
-    # objective func
-    adv_loss_ = adversarial_loss(vae, fake_images, watermark)
-    gan_loss_ = gan_loss(D(fake_images), real_label)
-    perturbation_loss_ = perturbation_loss(fake_images-real_images, watermark, config.c, config.watermark_region)
-    # perturbation_loss_ = 0
-    g_loss = adv_loss_ + config.alpha * gan_loss_ + config.beta * perturbation_loss_
+        loss_adv = adversarial_loss(vae, adv_images, watermark)
+        loss_perturbation = perturbation_loss(perturbation, watermark, config.c, config.watermark_region)
+        # perturbation_loss_ = 0
+        g_loss = loss_adv  + config.beta * loss_perturbation
 
-    g_loss.backward()
-    optimizer_G.step()
+        g_loss.backward()
+        optimizer_G.step()
 
-    g_loss_ = {'adv_loss': adv_loss_.item(), 'gan_loss': gan_loss_.item(), 'perturbation_loss': perturbation_loss_.item()} 
-    return d_loss.item(), g_loss_, fake_images
+    return loss_D_GAN.item(), loss_G_fake.item(), loss_adv.item(), loss_perturbation.item()
 
 
 def main(args, pipe):
@@ -239,17 +241,17 @@ def main(args, pipe):
             real_images = real_images.to(device)
             watermark = watermark.to(device)
 
-            d_loss, g_loss, fake_images = train_step(
+            loss_D_GAN, loss_G_fake, loss_adv, loss_pert = train_step(
                 G, D, vae, optimizer_G, optimizer_D,
                 real_images, watermark, args
             )
 
             if batch_idx % 1 == 0:
                 print(f"Epoch [{epoch}/{args.num_epochs}] \t"
-                      f"Batch [{batch_idx}] D_loss: {d_loss:.8f} \t"
-                      f"adv_loss: {g_loss['adv_loss']:.8f} \t"
-                      f"gan_loss: {g_loss['gan_loss']:.8f} \t"
-                      f"perturbation_loss: {g_loss['perturbation_loss']:.8f} \t")
+                      f"Batch [{batch_idx}]\t loss_D_GAN: {loss_D_GAN:.8f} \t"
+                      f"loss_G_fake: {loss_G_fake:.8f} \t"
+                      f"loss_adv: {loss_adv:.8f} \t"
+                      f"loss_pert: {loss_pert:.8f} \t")
         # scheduler_G.step(g_loss['gan_loss'])
         # scheduler_D.step(d_loss) 
         
