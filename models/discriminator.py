@@ -18,7 +18,7 @@ class Discriminator(nn.Module):
     def conv_block(self, in_channels, out_channels, normalize=True):
         layers = [nn.Conv2d(in_channels, out_channels, 4, 2, 1)]
         if normalize:
-            layers.append(nn.InstanceNorm2d(out_channels))
+            layers.append(nn.BatchNorm2d(out_channels))
         layers.append(nn.LeakyReLU(0.2, inplace=True))
         return nn.Sequential(*layers)
 
