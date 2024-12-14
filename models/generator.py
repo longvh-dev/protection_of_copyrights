@@ -108,4 +108,4 @@ class Generator(nn.Module):
         # Ensure output matches input spatial dimensions
         assert out.shape[2:] == x.shape[2:], f"Output shape {out.shape} doesn't match input shape {x.shape}"
         
-        return out + x
+        return out
