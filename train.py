@@ -72,11 +72,11 @@ def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, conf
         optimizer_D.zero_grad()
         
         pred_real = D(real_images)
-        loss_D_real = F.mse_loss(pred_real, torch.ones_like(pred_real, device=device))
+        loss_D_real = F.binary_cross_entropy_with_logits(pred_real, torch.ones_like(pred_real, device=device))
         loss_D_real.backward()
         
         pred_fake = D(adv_images.detach())
-        loss_D_fake = F.mse_loss(pred_fake, torch.zeros_like(pred_fake, device=device))
+        loss_D_fake = F.binary_cross_entropy_with_logits(pred_fake, torch.zeros_like(pred_fake, device=device))
         loss_D_fake.backward()
         
         loss_D_GAN = loss_D_real + loss_D_fake
@@ -86,7 +86,7 @@ def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, conf
     for _ in range(1):
         optimizer_G.zero_grad()
         pred_fake = D(adv_images)
-        loss_G_fake = F.mse_loss(pred_fake, torch.ones_like(pred_fake, device=device))
+        loss_G_fake = F.binary_cross_entropy_with_logits(pred_fake, torch.ones_like(pred_fake, device=device))
         loss_G_fake.backward(retain_graph=True)
 
         loss_adv = adversarial_loss(vae, adv_images, watermark)
@@ -103,7 +103,7 @@ def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, conf
 
 
 def main(args, pipe):
-    test_image = Image.open('data/wikiart/Early_Renaissance/andrea-del-castagno_dante-alighieri.jpg').convert("RGB")
+    test_image = Image.open('data/imagenet/IMAGENET_CAT/n02123045_6475_n02123045.JPEG').convert("RGB")
     test_image_size = test_image.size[::-1]
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -205,7 +205,7 @@ def main(args, pipe):
                 
         ### save test image every epoch
         G.eval()
-        watermark = create_watermark("vuhoanglong", test_image_size).convert("RGB")
+        watermark = create_watermark("IMAGENET_CAT", test_image_size).convert("RGB")
         transform = transforms.Compose([
             transforms.Resize((512, 512)),
             transforms.ToTensor(),
@@ -242,14 +242,14 @@ def main(args, pipe):
         # adv_image_resize = reverse_transform(adv_image.squeeze(0).cpu())
         # adv_image_resize.save(f"save_adv_image/adv_image_epoch_{epoch}.png")
         
-        diffusion_image = pipe(
-            prompt="A painting",
-            image=adv_image,
-            strength=0.1,
-        ).images[0]
-        # del pipe
-        # diffusion_image = transforms.Resize(test_image_size)(diffusion_image)
-        diffusion_image.save(f"save_diffusion_image/diffusion_image_epoch_{epoch}.png")
+        # diffusion_image = pipe(
+        #     prompt="A painting",
+        #     image=adv_image,
+        #     strength=0.1,
+        # ).images[0]
+        # # del pipe
+        # # diffusion_image = transforms.Resize(test_image_size)(diffusion_image)
+        # diffusion_image.save(f"save_diffusion_image/diffusion_image_epoch_{epoch}.png")
         
         ### 
         if epoch % 5 == 0 and epoch != 0:
@@ -272,14 +272,15 @@ def main(args, pipe):
 
 
 if __name__ == "__main__":
-    pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
-        "runwayml/stable-diffusion-v1-5",
-        torch_dtype=torch.float16,
-        use_safetensors=True,
-        safety_checker = None,
-        requires_safety_checker = False,
-    ).to('cuda')
-    pipe.enable_model_cpu_offload()
+    # pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+    #     "runwayml/stable-diffusion-v1-5",
+    #     torch_dtype=torch.float16,
+    #     use_safetensors=True,
+    #     safety_checker = None,
+    #     requires_safety_checker = False,
+    # ).to('cuda')
+    # pipe.enable_model_cpu_offload()
+    pipe = 0
     
     args = get_args()
     print(args)
