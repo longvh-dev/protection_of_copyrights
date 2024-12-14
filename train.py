@@ -65,7 +65,8 @@ def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, conf
     # Train Discriminator
     for _ in range(1):
         perturbation = G(real_images, watermark)
-        adv_images = torch.clamp(perturbation, -0.3, 0.3) + real_images
+        # adv_images = torch.clamp(perturbation, -0.3, 0.3) + real_images
+        adv_images = perturbation + real_images
         adv_images = torch.clamp(adv_images, 0, 1)
         
         optimizer_D.zero_grad()
