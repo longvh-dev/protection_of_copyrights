@@ -39,7 +39,7 @@ class WatermarkDataset(Dataset):
             filepath = os.path.join(image_dir, row['filename'])
             if os.path.exists(filepath):
                 self.valid_files.append(idx)
-            
+ 
         # Create mappings for artists and genres
         self.artists = sorted(self.metadata_df['artist'].unique())
         # self.genres = sorted(self.metadata_df['genre'].unique())
@@ -191,7 +191,7 @@ def create_watermark(
         draw.text((2, y), text, fill=(255, 255, 255, 255), font=font)
     
     # add small noise to watermark
-    watermark_image = watermark_image.rotate(1)
+    # watermark_image = watermark_image.rotate(1)
     return watermark_image
         # Random horizontal offset
     #     x_offset = random.uniform(-20, 20)
