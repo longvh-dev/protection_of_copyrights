@@ -177,12 +177,16 @@ def main(args, pipe):
     for epoch in range(start_epoch, args.num_epochs+1):
         G.train()
         D.train()
+        
+        if epoch == start_epoch + 20:
+            optimizer_G.param_groups[0]['lr'] = args.lr / 10
+            optimizer_D.param_groups[0]['lr'] = args.lr / 10
 
         for batch_idx, (real_images, watermark, _) in enumerate(train_dataloader):
             real_images = real_images.to(device)
             watermark = watermark.to(device)
 
-            loss_D_GAN, loss_G_fake, loss_adv, loss_pert = train_step(
+            loss_D_GAN, loss_G_fake, loss_adv, loss_pert, loss_G_sum = train_step(
                 G, D, vae, optimizer_G, optimizer_D,
                 real_images, watermark, args
             )
@@ -192,7 +196,8 @@ def main(args, pipe):
                       f"Batch [{batch_idx}]\t loss_D_GAN: {loss_D_GAN:.8f} \t"
                       f"loss_G_fake: {loss_G_fake:.8f} \t"
                       f"loss_adv: {loss_adv:.8f} \t"
-                      f"loss_pert: {loss_pert:.8f} \t")
+                      f"loss_pert: {loss_pert:.8f} \t"
+                      f"loss_G_sum: {loss_G_sum:.8f} \t")
         # scheduler_G.step(g_loss['gan_loss'])
         # scheduler_D.step(d_loss) 
         
