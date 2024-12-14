@@ -9,12 +9,15 @@ class VAEWrapper:
             subfolder="vae",
         )
         self.vae.eval()
+        for param in self.vae.parameters():
+            param.requires_grad = False
     
     def encode(self, x):
+        x = x.clamp(0, 1)
         x = 2 * x - 1  # Scale to [-1, 1]
-        with torch.no_grad():
-            latent = self.vae.encode(x).latent_dist.sample()
-            latent = latent * self.vae.config.scaling_factor
+        # with torch.no_grad():
+        latent = self.vae.encode(x).latent_dist.mean
+        latent = latent * self.vae.config.scaling_factor
         return latent
     
     def decode(self, z):
