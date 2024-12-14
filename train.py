@@ -49,72 +49,13 @@ def get_args():
 
     return args.parse_args()
 
-def pretrain_generator(G, vae, train_dataloader, device, save_dir, num_epochs=5):
-    """Pretrain generator with reconstruction and perceptual losses"""
-    G.train()
-    vgg = models.vgg11(pretrained=True).features[:8].to(device).eval()  # Only use first few layers
-    for param in vgg.parameters():
-        param.requires_grad = False
-    best_loss = float('inf')
-    patience = 3
-    patience_counter = 0
-    
-    optimizer = torch.optim.AdamW(G.parameters(), lr=1e-4)
-    
-    for epoch in range(num_epochs):
-        total_loss = 0
-        for batch_idx, (real_images, watermark, _) in enumerate(train_dataloader):
-            real_images = real_images.to(device)
-            watermark = watermark.to(device)
-            
-            # Generate watermarked images
-            watermarked = G(real_images, watermark)
-            
-            # Reconstruction loss (L1)
-            recon_loss = F.l1_loss(watermarked, real_images)
-            
-            # Perceptual loss
-            real_features = vgg(real_images)
-            fake_features = vgg(watermarked)
-            perceptual_loss = F.mse_loss(fake_features, real_features)
-            
-            # Watermark embedding loss
-            watermark_loss = adversarial_loss(vae, watermarked, watermark)
-            
-            # Total loss
-            loss = recon_loss + 0.1 * perceptual_loss + 0.01 * watermark_loss
-            
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            
-            total_loss += loss.item()
-            
-            if batch_idx % 10 == 0:
-                print(f"Pretrain [{epoch}/{num_epochs}] "
-                      f"Batch [{batch_idx}] Loss: {loss.item():.4f}")
-        
-        avg_loss = total_loss / len(train_dataloader)
-        
-        # Save best model
-        if avg_loss < best_loss:
-            best_loss = avg_loss
-            torch.save({
-                'epoch': epoch,
-                'generator_state_dict': G.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': best_loss
-            }, f'{save_dir}/pretrained_generator.pth')
-            patience_counter = 0
-        else:
-            patience_counter += 1
-            
-        # Early stopping
-        if patience_counter >= patience:
-            print("Early stopping triggered")
-            break
-            
-    return G
+def weights_init(m):
+    classname = m.__class__.__name__
+    if hasattr(m, 'weight') and classname.find('Conv') != -1:
+        torch.nn.init.normal_(m.weight.data, 0.0, 0.02)
+    elif hasattr(m, 'weight') and classname.find('BatchNorm') != -1:
+        torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
+        torch.nn.init.constant_(m.bias.data, 0)
 
 
 def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, config):
@@ -154,8 +95,10 @@ def train_step(G, D, vae, optimizer_G, optimizer_D, real_images, watermark, conf
 
         g_loss.backward()
         optimizer_G.step()
+        
+        g_loss_sum = config.alpha * loss_G_fake + loss_adv + config.beta * loss_perturbation
 
-    return loss_D_GAN.item(), loss_G_fake.item(), loss_adv.item(), loss_perturbation.item()
+    return loss_D_GAN.item(), loss_G_fake.item(), loss_adv.item(), loss_perturbation.item(), g_loss_sum.item()
 
 
 def main(args, pipe):
@@ -192,7 +135,7 @@ def main(args, pipe):
 
     # Initialize models
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    G = Generator(args.input_channels).to(device)
+    G = Generator(args.input_channels, dropout_rate=0.0).to(device)
     D = Discriminator(args.input_channels).to(device)
     vae = VAEWrapper(args.vae_path).to(device)
     for param in vae.vae.parameters():
@@ -225,11 +168,9 @@ def main(args, pipe):
         optimizer_D.load_state_dict(checkpoint['optimizer_D_state_dict'])
     else:
         # pretrain generator
-        G = pretrain_generator(G, vae, train_dataloader, device, save_dir, num_epochs=5)
-    
-    
-    
-    
+        # G = pretrain_generator(G, vae, train_dataloader, device, save_dir, num_epochs=2)
+        G.apply(weights_init)
+        D.apply(weights_init)
     
     torch.cuda.empty_cache()
     
