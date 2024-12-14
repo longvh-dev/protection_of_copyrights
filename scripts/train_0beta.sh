@@ -1,14 +1,15 @@
 #!/bin/bash
 nohup python -u train.py \
     --name dank-base \
-    --num_epochs 100 \
-    --batch_size 8 \
+    --num_epochs 500 \
+    --batch_size 2 \
     --lr 0.001 \
     --alpha 1.0 \
-    --beta 0.0 \
+    --beta 10.0 \
     --watermark_region 4.0 \
-    --train_dir "data/wikiart" \
-    --train_classes "data/wikiart/train_classes.csv" \
-    --eval_dir "data/wikiart" \
-    --eval_classes "data/wikiart/eval_classes.csv" \
+    --train_dir "data/imagenet" \
+    --train_classes "data/imagenet/train_classes_1.csv" \
+    --eval_dir "data/imagenet" \
+    --eval_classes "data/imagenet/train_classes.csv" \
     > logs_dank.log &
+    # --checkpoint "checkpoint_epoch_160.pth" \

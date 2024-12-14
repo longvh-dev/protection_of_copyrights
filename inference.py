@@ -34,7 +34,7 @@ def generate_with_gan(pipe, generator, image, watermark, prompt, strength=0.1):
     ).images[0]
     del pipe
 
-    return output, image
+    return output, adversarial_image
 
 
 def generate_without_gan(pipe, image, prompt, strength=0.1):
@@ -45,7 +45,7 @@ def generate_without_gan(pipe, image, prompt, strength=0.1):
         strength=strength,
     ).images[0]
     # del pipe
-    return output, image
+    return output
 
 
 def main(args):
@@ -80,19 +80,27 @@ def main(args):
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
+    reverse_transform = transforms.Compose([
+        transforms.Normalize(mean=[-m / s for m, s in zip((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))], std=[1 / s for s in (0.5, 0.5, 0.5)]),
+        transforms.ToPILImage(),
+        transforms.Resize(image_size[::-1]),
+    ])
 
     resize = transforms.Resize(image_size[::-1])
     image_ = transform(image).unsqueeze(0).to('cuda')
     watermark_ = transform(watermark).unsqueeze(0).to('cuda')
 
     for prompt in test_prompts:
-        output, _ = generate_with_gan(pipe, 
+        output, adv_image = generate_with_gan(pipe, 
             generator, image_, watermark_, prompt, strength=args.strength)
-        output_resized = resize(output)
+        output_adv = reverse_transform(adv_image.squeeze(0)).convert("RGB")
+        output_adv.save(f"output/adv_{prompt}_with_gan.png")
+        # output_resized = resize(output)
         output_resized = resize(output).convert("RGB")
         output_resized.save(f"output/{prompt}_with_gan.png")
+        
     for prompt in test_prompts:
-        output, _ = generate_without_gan(pipe, image, prompt, strength=args.strength)
+        output = generate_without_gan(pipe, image, prompt, strength=args.strength)
         output.save(f"output/{prompt}_without_gan.png")
 
 if __name__ == "__main__":
