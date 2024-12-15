@@ -177,7 +177,7 @@ def create_watermark(
     try:
         font = ImageFont.truetype("DejaVuSans.ttf", adjusted_font_size)
     except:
-        font = ImageFont.load_default()
+        font = ImageFont.load_default(adjusted_font_size)
     
     # Calculate text dimensions and spacing
     text_bbox = draw.textbbox((0, 0), text, font=font)
