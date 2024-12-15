@@ -136,7 +136,7 @@ def main(args, pipe):
 
     # Initialize models
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    G = Generator(args.input_channels, dropout_rate=0.0).to(device)
+    G = Generator(args.input_channels).to(device)
     D = Discriminator(args.input_channels).to(device)
     vae = VAEWrapper(args.vae_path).to(device)
     for param in vae.vae.parameters():
